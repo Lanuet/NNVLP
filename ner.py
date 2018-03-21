@@ -3,7 +3,7 @@ import utils
 from labelencoder import LabelEncoder
 import codecs
 import numpy as np
-import cPickle as pickle
+import pickle
 from datetime import datetime
 import argparse
 import lasagne
@@ -141,19 +141,19 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     char_test = utils.construct_tensor_char(index_sentences_test, max_length, max_char_length, alphabet_char)
     num_labels = alphabet_label.size() - 1
     num_data, _, embedd_dim_concat = word_train.shape
-    print np.shape(word_train)
-    print np.shape(word_dev)
-    print np.shape(word_test)
-    print np.shape(char_train)
-    print np.shape(char_dev)
-    print np.shape(char_test)
-    print np.shape(mask_train)
-    print np.shape(mask_dev)
-    print np.shape(mask_test)
-    print np.shape(label_train)
-    print np.shape(label_dev)
-    print np.shape(label_test)
-    print word_train[-1]
+    print(np.shape(word_train))
+    print(np.shape(word_dev))
+    print(np.shape(word_test))
+    print(np.shape(char_train))
+    print(np.shape(char_dev))
+    print(np.shape(char_test))
+    print(np.shape(mask_train))
+    print(np.shape(mask_dev))
+    print(np.shape(mask_test))
+    print(np.shape(label_train))
+    print(np.shape(label_dev))
+    print(np.shape(label_test))
+    print(word_train[-1])
     return word_train, word_dev, word_test, char_train, char_dev, char_test, mask_train, mask_dev, mask_test, \
            label_train, label_dev, label_test, alphabet_label, alphabet_char, max_length, max_char_length, \
            char_embedd_table, num_labels, num_data, embedd_dim_concat
@@ -207,22 +207,22 @@ def set_weights(filename, model):
 
 if __name__ == '__main__':
     start_time = datetime.now()
-    print 'Loading data...'
+    print('Loading data...')
     word_train, word_dev, word_test, char_train, char_dev, char_test, mask_train, mask_dev, mask_test, \
     label_train, label_dev, label_test, alphabet_label, alphabet_char, max_sent_length, max_char_length, \
     char_embedd_table, num_labels, num_data, embedd_dim_concat = \
         create_data_2_train(train_dir, dev_dir, test_dir, char_embedd_dim)
-    print 'Building model...'
+    print('Building model...')
     ner_model, input_var, target_var, mask_var, char_input_var, prediction_fn = \
         network.build_model(embedd_dim_concat, max_sent_length, max_char_length, alphabet_char.size(), char_embedd_dim,
                             num_labels, dropout, num_filters, num_units, grad_clipping, peepholes, char_embedd_table)
-    print 'Training model...'
+    print('Training model...')
     network.train_model(num_data, batch_size, learning_rate, patience, decay_rate, word_train, label_train, mask_train,
                         char_train, word_dev, label_dev, mask_dev, char_dev, word_test, label_test, mask_test,
                         char_test, input_var, target_var, mask_var, char_input_var, ner_model, 'ner',
                         alphabet_label, 'output/ner')
-    print 'Saving parameter...'
+    print('Saving parameter...')
     save_config('pre-trained-model/ner/config.ini')
     end_time = datetime.now()
-    print "Running time:"
-    print end_time - start_time
+    print("Running time:")
+    print(end_time - start_time)

@@ -163,7 +163,7 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
     stop_count = 0
     lr = learning_rate
     for epoch in range(1, num_epochs + 1):
-        print 'Epoch %d (learning rate=%.4f, decay rate=%.4f): ' % (epoch, lr, decay_rate)
+        print('Epoch %d (learning rate=%.4f, decay rate=%.4f): ' % (epoch, lr, decay_rate))
         train_err = 0.0
         train_corr = 0.0
         train_total = 0
@@ -191,9 +191,7 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
         # update training log after each epoch
         assert train_inst == num_data
         sys.stdout.write("\b" * num_back)
-        print 'train: %d/%d loss: %.4f, acc: %.2f%%, time: %.2fs' % (
-            min(train_batches * batch_size, num_data), num_data,
-            train_err / num_data, train_corr * 100 / train_total, time.time() - start_time)
+        print('train: %d/%d loss: %.4f, acc: %.2f%%, time: %.2fs' % (min(train_batches * batch_size, num_data), num_data, train_err / num_data, train_corr * 100 / train_total, time.time() - start_time))
         # evaluate performance on dev data
         dev_err = 0.0
         dev_corr = 0.0
@@ -209,8 +207,7 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
             dev_inst += inputs.shape[0]
             utils.output_predictions(predictions, targets, masks, output_dir + '/dev%d' % epoch, label_alphabet,
                                      is_flattened=False)
-        print 'dev loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (
-            dev_err / dev_inst, dev_corr, dev_total, dev_corr * 100 / dev_total)
+        print('dev loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (dev_err / dev_inst, dev_corr, dev_total, dev_corr * 100 / dev_total))
         if model_name != 'pos':
             input = open(output_dir + '/dev%d' % epoch)
             p1 = subprocess.Popen(shlex.split("perl conlleval.pl"), stdin=input)
@@ -245,8 +242,7 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
                 utils.output_predictions(predictions, targets, masks, output_dir + '/test%d' % epoch, label_alphabet,
                                          is_flattened=False)
             np.savez('pre-trained-model/' + model_name + '/weights', *lasagne.layers.get_all_param_values(model))
-            print 'test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (
-                test_err / test_inst, test_corr, test_total, test_corr * 100 / test_total)
+            print('test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (test_err / test_inst, test_corr, test_total, test_corr * 100 / test_total))
             if model_name != 'pos':
                 input = open(output_dir + '/test%d' % epoch)
                 p1 = subprocess.Popen(shlex.split("perl conlleval.pl"), stdin=input)
@@ -266,10 +262,8 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
         train_fn = theano.function([input_var, target_var, mask_var, char_input_var],
                                    [loss_train, corr_train, num_tokens],
                                    updates=updates)
-    # print best performance on test data.
-    print "final best loss test performance (at epoch %d)" % (best_epoch_loss)
-    print 'test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (
-        best_loss_test_err / test_inst, best_loss_test_corr, test_total, best_loss_test_corr * 100 / test_total)
-    print "final best acc test performance (at epoch %d)" % (best_epoch_acc)
-    print 'test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (
-        best_acc_test_err / test_inst, best_acc_test_corr, test_total, best_acc_test_corr * 100 / test_total)
+    # print(best performance on test data.)
+    print("final best loss test performance (at epoch %d)" % (best_epoch_loss))
+    print('test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (best_loss_test_err / test_inst, best_loss_test_corr, test_total, best_loss_test_corr * 100 / test_total))
+    print("final best acc test performance (at epoch %d)" % (best_epoch_acc))
+    print('test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (best_acc_test_err / test_inst, best_acc_test_corr, test_total, best_acc_test_corr * 100 / test_total))
