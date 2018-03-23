@@ -44,6 +44,23 @@ decay_rate = float(args.decay_rate)
 patience = int(args.patience)
 
 
+# train_dir = "data/ner/ner_train.txt"
+# dev_dir = "data/ner/ner_dev.txt"
+# test_dir = "data/ner/ner_test.txt"
+# word_dir = "embedding/vectors.npy"
+# vector_dir = "embedding/words.pl"
+# char_embedd_dim = 30
+# num_units =300
+# num_filters = 30
+# dropout = "False"
+# grad_clipping = 5.0
+# peepholes = "False"
+# batch_size = 10
+# learning_rate = 0.01
+# decay_rate = 0.05
+# patience = 5
+
+
 embedding_vectors = np.load('embedding/vectors.npy')
 with open('embedding/words.pl', 'rb') as handle:
     embedding_words = pickle.load(handle)
@@ -154,6 +171,9 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     print(np.shape(label_dev))
     print(np.shape(label_test))
     print(word_train[-1])
+    np.save("word_train.npy",word_train)
+    np.save("label_train.npy", label_train)
+    print("Done")
     return word_train, word_dev, word_test, char_train, char_dev, char_test, mask_train, mask_dev, mask_test, \
            label_train, label_dev, label_test, alphabet_label, alphabet_char, max_length, max_char_length, \
            char_embedd_table, num_labels, num_data, embedd_dim_concat

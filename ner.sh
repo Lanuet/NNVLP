@@ -33,4 +33,4 @@ else
     wget --load-cookie cookie.txt --save-cookie cookie.txt "${url}&$c" -O "${file}"
     rm cookie.txt tmp
 fi
-python ner.py --train_dir "data/ner/ner_train.muc" --dev_dir "data/ner/ner_dev.muc" --test_dir "data/ner/ner_test.muc" --word_dir "embedding/vectors.npy" --vector_dir "embedding/words.pl" --char_embedd_dim 30 --num_units 300 --num_filters 30 --dropout --grad_clipping 5.0 --peepholes --batch_size 10 --learning_rate 0.01 --decay_rate 0.05 --patience 5
+python ner.py --train_dir "data/ner/ner_train.txt" --dev_dir "data/ner/ner_dev.txt" --test_dir "data/ner/ner_test.txt" --word_dir "embedding/vectors.npy" --vector_dir "embedding/words.pl" --char_embedd_dim 30 --num_units 300 --num_filters 30 --dropout --grad_clipping 5.0 --peepholes --batch_size 10 --learning_rate 0.01 --decay_rate 0.05 --patience 5
