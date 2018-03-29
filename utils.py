@@ -199,10 +199,11 @@ def map_string_2_id_close(string_list, alphabet_string):
 
 
 def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd, embedd_words, embedd_vectors,
-                          embedd_dim, max_length):
+                          embedd_dim, max_length, prev_words_avg):
     X = np.empty([len(word_sentences), max_length, embedd_dim], dtype=theano.config.floatX)
     Y = np.empty([len(word_sentences), max_length], dtype=np.int32)
     mask = np.zeros([len(word_sentences), max_length], dtype=theano.config.floatX)
+    prev_words_feature = np.empty([len(word_sentences), max_length, embedd_dim], dtype=theano.config.floatX)
     for i in range(len(word_sentences)):
         words = word_sentences[i]
         label_ids = label_index_sentences[i]
@@ -216,13 +217,27 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
                 embedd = unknown_embedd
             X[i, j, :] = embedd
             Y[i, j] = label - 1
+            prev_words_feature[i, j, :] = embedd - prev_words_avg
         # Zero out X after the end of the sequence
         X[i, length:] = np.zeros([1, embedd_dim], dtype=theano.config.floatX)
+        prev_words_feature[i, length:] = np.zeros([1, embedd_dim], dtype=theano.config.floatX)
         # Copy the last label after the end of the sequence
         Y[i, length:] = Y[i, length - 1]
         # Make the mask for this sample 1 within the range of length
         mask[i, :length] = 1
-    return X, Y, mask
+    return X, Y, mask, prev_words_feature
+
+def construct_tensor_prev_words_avg(words, unknown_embedd, embedd_words, embedd_vectors):
+    words_embeded = []
+    for word in words:
+        try:
+            embedd = embedd_vectors[embedd_words.index(word)]
+        except:
+            embedd = unknown_embedd
+        words_embeded.append(embedd)
+    prev_words_avg = np.average(words_embeded, 0)
+    return prev_words_avg
+
 
 
 def construct_tensor_onehot(feature_sentences, max_length, dim):
