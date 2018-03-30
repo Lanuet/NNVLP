@@ -217,7 +217,8 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
                 embedd = unknown_embedd
             X[i, j, :] = embedd
             Y[i, j] = label - 1
-            tmp = np.repeat(embedd, prev_words_avg.shape[0], 0)
+            tmp = np.reshape(embedd, [1, -1])
+            tmp = np.repeat(tmp, prev_words_avg.shape[0], 0)
             tmp = tmp - prev_words_avg
             tmp = np.linalg.norm(tmp, axis=-1)
             prev_words_feature[i, j, :] = tmp
