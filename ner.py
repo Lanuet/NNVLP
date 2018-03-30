@@ -49,6 +49,23 @@ decay_rate = float(args.decay_rate)
 patience = int(args.patience)
 lifelong = bool(args.lifelong)
 
+# train_dir = "data/ner/ner_train.muc"
+# dev_dir = "data/ner/ner_dev.muc"
+# test_dir = "data/ner/ner_test.muc"
+# word_dir = "embedding/vectors.npy"
+# vector_dir = "embedding/words.pl"
+# char_embedd_dim = 30
+# num_units =300
+# num_filters = 30
+# dropout = "False"
+# grad_clipping = 5.0
+# peepholes = "False"
+# batch_size = 10
+# learning_rate = 0.01
+# decay_rate = 0.05
+# patience = 5
+# lifelong = True
+
 
 embedding_vectors = np.load('embedding/vectors.npy')
 with open('embedding/words.pl', 'rb') as handle:
