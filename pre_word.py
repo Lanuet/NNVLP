@@ -11,24 +11,21 @@ def word_previous_entity(path):
     print(path)
     with open(path, "r", encoding="utf8") as f:
         sentences = parse(f.read(), ["\n\n", "\n", "\t"])
-    words = []
+    words = {}
     for s in sentences:
         for i, w in enumerate(s):
-            if w[-2] != "O" and i > 0 and s[i-1][-2] == 'O':
-                words.append(s[i-1][0])
-    new_path = path + ".prev"
-    with open(new_path, "w", encoding="utf8") as f:
-        f.write("\n".join(words))
+            if w[-2] != "O" and i > 0 and s[i-1][-2] == 'O' and s[i-1][0] not in [",", ".", '“', '”', ":", "'", "(", ")", "–", "-", '"', "/"]:
+                tag = w[-2][-3:]
+                if tag not in words:
+                    words[tag] = []
+                words[tag].append(s[i-1][0])
     return words
 
 def main():
-    files = glob.glob("data/ner/**.txt") + glob.glob("data/ner/**.muc")
-    words = []
-    for f in files:
-        words += word_previous_entity(f)
-    words = set(words)
-    with open("data/ner/total.prev", "w", encoding="utf8") as f:
-        f.write("\n".join(words))
+    words = word_previous_entity("data/ner/ner_train.muc")
+    for tag in words:
+        with open("data/ner/prev_%s.txt" % tag, "w", encoding="utf8") as f:
+            f.write("\n".join(words[tag]))
 
 
 if __name__ == "__main__":

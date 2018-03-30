@@ -1,3 +1,7 @@
+import glob
+
+import theano
+
 import network
 import utils
 from labelencoder import LabelEncoder
@@ -7,7 +11,7 @@ import pickle
 from datetime import datetime
 import argparse
 import lasagne
-
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", help="train file directory")
@@ -25,6 +29,7 @@ parser.add_argument("--batch_size", help="batch size for training")
 parser.add_argument("--learning_rate", help="learning rate")
 parser.add_argument("--decay_rate", help="decay rate")
 parser.add_argument("--patience", help="patience")
+parser.add_argument("--lifelong", help="lifelong")
 args = parser.parse_args()
 
 train_dir = args.train_dir
@@ -42,23 +47,7 @@ batch_size = int(args.batch_size)
 learning_rate = float(args.learning_rate)
 decay_rate = float(args.decay_rate)
 patience = int(args.patience)
-
-
-# train_dir = "data/ner/ner_train.txt"
-# dev_dir = "data/ner/ner_dev.txt"
-# test_dir = "data/ner/ner_test.txt"
-# word_dir = "embedding/vectors.npy"
-# vector_dir = "embedding/words.pl"
-# char_embedd_dim = 30
-# num_units =300
-# num_filters = 30
-# dropout = "False"
-# grad_clipping = 5.0
-# peepholes = "False"
-# batch_size = 10
-# learning_rate = 0.01
-# decay_rate = 0.05
-# patience = 5
+lifelong = bool(args.lifelong)
 
 
 embedding_vectors = np.load('embedding/vectors.npy')
@@ -123,9 +112,11 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     label_sentences_id_dev = utils.map_string_2_id_close(label_sentences_dev, alphabet_label)
     label_sentences_id_test = utils.map_string_2_id_close(label_sentences_test, alphabet_label)
 
-    with open(train_path + ".prev", "r", encoding="utf8") as f:
-        prev_words = f.read().strip().split("\n")
-    prev_words_avg = utils.construct_tensor_prev_words_avg(prev_words, unknown_embedd, embedding_words, embedding_vectors)
+    files = glob.glob("data/ner/prev_*.txt")
+    prev_words_avg = np.empty([len(files), embedd_dim], dtype=theano.config.floatX)
+    for i, f in enumerate(files):
+        prev_words = utils.construct_tensor_prev_words_avg(f, unknown_embedd, embedding_words, embedding_vectors)
+        prev_words_avg[i, :] = prev_words
 
     word_train, label_train, mask_train, prev_words_feature_train = \
         utils.construct_tensor_word(word_sentences_train, label_sentences_id_train, unknown_embedd, embedding_words,
@@ -144,13 +135,13 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     chunk_test = utils.construct_tensor_onehot(chunk_sentences_id_test, max_length, alphabet_chunk.size())
     word_train = np.concatenate((word_train, pos_train), axis=2)
     word_train = np.concatenate((word_train, chunk_train), axis=2)
-    word_train = np.concatenate((word_train, prev_words_feature_train), axis=2)
+    if lifelong: word_train = np.concatenate((word_train, prev_words_feature_train), axis=2)
     word_dev = np.concatenate((word_dev, pos_dev), axis=2)
     word_dev = np.concatenate((word_dev, chunk_dev), axis=2)
-    word_dev = np.concatenate((word_dev, prev_words_feature_dev), axis=2)
+    if lifelong: word_dev = np.concatenate((word_dev, prev_words_feature_dev), axis=2)
     word_test = np.concatenate((word_test, pos_test), axis=2)
     word_test = np.concatenate((word_test, chunk_test), axis=2)
-    word_test = np.concatenate((word_test, prev_words_feature_test), axis=2)
+    if lifelong: word_test = np.concatenate((word_test, prev_words_feature_test), axis=2)
     alphabet_char = LabelEncoder('char')
     alphabet_char.get_index(word_end)
     index_sentences_train, max_char_length_train = utils.get_character_indexes(word_sentences_train, alphabet_char)
@@ -197,6 +188,7 @@ def save_config(config_file):
         f.write('grad_clipping' + '\t' + str(grad_clipping) + '\n')
         f.write('peepholes' + '\t' + str(peepholes) + '\n')
         f.write('char_embedd_dim' + '\t' + str(char_embedd_dim) + '\n')
+        f.write('lifelong' + '\t' + str(lifelong) + '\n')
 
 
 def load_config(config_file):
@@ -221,9 +213,14 @@ def load_config(config_file):
         peepholes = True
     elif peepholes == 'False':
         peepholes = False
+    lifelong = config['lifelong']
+    if lifelong == 'True':
+        lifelong = True
+    elif lifelong == 'False':
+        lifelong = False
     char_embedd_dim = int(config['char_embedd_dim'])
     return max_sent_length, max_char_length, num_labels, dropout, num_filters, num_units, grad_clipping, peepholes, \
-           char_embedd_dim
+           char_embedd_dim, lifelong
 
 
 def set_weights(filename, model):
@@ -233,6 +230,9 @@ def set_weights(filename, model):
 
 
 if __name__ == '__main__':
+    if not os.path.exists("output/ner"):
+        os.makedirs("output/ner")
+
     start_time = datetime.now()
     print('Loading data...')
     word_train, word_dev, word_test, char_train, char_dev, char_test, mask_train, mask_dev, mask_test, \
