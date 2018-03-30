@@ -111,3 +111,4 @@ embedding/*
 output/*
 cookie.txt
 tmp
+pre-trained-model/*

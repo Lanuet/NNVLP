@@ -1,7 +1,5 @@
 import glob
-
 import theano
-
 import network
 import utils
 from labelencoder import LabelEncoder
@@ -12,6 +10,7 @@ from datetime import datetime
 import argparse
 import lasagne
 import os
+from distutils.dir_util import copy_tree
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", help="train file directory")
@@ -249,8 +248,9 @@ def set_weights(filename, model):
 if __name__ == '__main__':
     if not os.path.exists("output/ner"):
         os.makedirs("output/ner")
-    if not os.path.exists("pre-trained-model/ner"):
-        os.makedirs("pre-trained-model/ner")
+    if not os.path.exists("pre-trained-model"):
+        print("copy pre-trained-model")
+        copy_tree("backup_pre-trained-model", "pre-trained-model")
 
     start_time = datetime.now()
     print('Loading data...')
