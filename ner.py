@@ -249,6 +249,8 @@ def set_weights(filename, model):
 if __name__ == '__main__':
     if not os.path.exists("output/ner"):
         os.makedirs("output/ner")
+    if not os.path.exists("pre-trained-model/ner"):
+        os.makedirs("pre-trained-model/ner")
 
     start_time = datetime.now()
     print('Loading data...')
