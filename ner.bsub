@@ -2,7 +2,7 @@
 #
 #BSUB -J ner
 #BSUB -n 10
-#BSUB -R "span[ptile=10]"
+#BSUB -R "span[ptile=2]"
 #BSUB -q gpu
 #BSUB -e %J.err
 #BSUB -o %J.out
