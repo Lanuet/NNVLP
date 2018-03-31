@@ -23,6 +23,7 @@ def word_previous_entity(path):
 
 def main():
     words = word_previous_entity("data/ner/ner_train.muc")
+    words = set(words)
     for tag in words:
         with open("data/ner/prev_%s.txt" % tag, "w", encoding="utf8") as f:
             f.write("\n".join(words[tag]))
