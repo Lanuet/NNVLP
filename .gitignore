@@ -112,3 +112,5 @@ output/*
 cookie.txt
 tmp
 pre-trained-model/*
+label_train.npy
+word_train.npy
