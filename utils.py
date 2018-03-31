@@ -203,7 +203,7 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
     X = np.empty([len(word_sentences), max_length, embedd_dim], dtype=theano.config.floatX)
     Y = np.empty([len(word_sentences), max_length], dtype=np.int32)
     mask = np.zeros([len(word_sentences), max_length], dtype=theano.config.floatX)
-    prev_words_feature = np.zeros([len(word_sentences), max_length, embedd_dim*3], dtype=theano.config.floatX)
+    prev_words_feature = np.zeros([len(word_sentences), max_length, prev_words_avg.shape[0]*prev_words_avg.shape[1]], dtype=theano.config.floatX)
     for i in range(len(word_sentences)):
         words = word_sentences[i]
         label_ids = label_index_sentences[i]
