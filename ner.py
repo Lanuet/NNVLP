@@ -11,6 +11,7 @@ import argparse
 import lasagne
 import os
 from distutils.dir_util import copy_tree
+from shutil import copyfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", help="train file directory")
@@ -251,6 +252,13 @@ if __name__ == '__main__':
     if not os.path.exists("pre-trained-model"):
         print("copy pre-trained-model")
         copy_tree("backup_pre-trained-model", "pre-trained-model")
+    if not os.path.exists("label_train.npy"):
+        print("copy label_train.npy")
+        copyfile("backup_label_train.npy", "label_train.npy")
+    if not os.path.exists("word_train.npy"):
+        print("copy word_train.npy")
+        copyfile("backup_word_train.npy", "word_train.npy")
+
 
     start_time = datetime.now()
     print('Loading data...')
