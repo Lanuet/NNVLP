@@ -8,6 +8,6 @@
 
 module load cuda
 
-source anaconda3/bin/activate py35
+source ~/anaconda3/bin/activate py35
 cd ~/NNVLP
 bash ner.sh
