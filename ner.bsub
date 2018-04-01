@@ -1,7 +1,9 @@
 #!/bin/bash
 #
 #BSUB -J ner
-#BSUB -q normal
+#BSUB -n 36
+#BSUB -R "span[ptile=4]"
+#BSUB -q gpu
 #BSUB -e %J.err
 #BSUB -o %J.out
 
