@@ -135,26 +135,18 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
         for i, f in enumerate(files):
             prev_words = utils.construct_tensor_prev_words_avg(f, unknown_embedd, embedding_words, embedding_vectors)
             prev_words_avg[i, :] = prev_words
-
-        word_train, label_train, mask_train, prev_words_feature_train = \
-            utils.construct_tensor_word(word_sentences_train, label_sentences_id_train, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length, prev_words_avg)
-        word_dev, label_dev, mask_dev, prev_words_feature_dev = \
-            utils.construct_tensor_word(word_sentences_dev, label_sentences_id_dev, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length, prev_words_avg)
-        word_test, label_test, mask_test, prev_words_feature_test = \
-            utils.construct_tensor_word(word_sentences_test, label_sentences_id_test, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length, prev_words_avg)
     else:
-        word_train, label_train, mask_train = \
-            utils.construct_tensor_word(word_sentences_train, label_sentences_id_train, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length)
-        word_dev, label_dev, mask_dev, prev_words_feature_dev = \
-            utils.construct_tensor_word(word_sentences_dev, label_sentences_id_dev, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length)
-        word_test, label_test, mask_test, prev_words_feature_test = \
-            utils.construct_tensor_word(word_sentences_test, label_sentences_id_test, unknown_embedd, embedding_words,
-                                        embedding_vectors, embedd_dim, max_length)
+        prev_words_avg = None
+
+    word_train, label_train, mask_train, prev_words_feature_train = \
+        utils.construct_tensor_word(word_sentences_train, label_sentences_id_train, unknown_embedd, embedding_words,
+                                    embedding_vectors, embedd_dim, max_length, prev_words_avg)
+    word_dev, label_dev, mask_dev, prev_words_feature_dev = \
+        utils.construct_tensor_word(word_sentences_dev, label_sentences_id_dev, unknown_embedd, embedding_words,
+                                    embedding_vectors, embedd_dim, max_length, prev_words_avg)
+    word_test, label_test, mask_test, prev_words_feature_test = \
+        utils.construct_tensor_word(word_sentences_test, label_sentences_id_test, unknown_embedd, embedding_words,
+                                    embedding_vectors, embedd_dim, max_length, prev_words_avg)
 
     pos_train = utils.construct_tensor_onehot(pos_sentences_id_train, max_length, alphabet_pos.size())
     pos_dev = utils.construct_tensor_onehot(pos_sentences_id_dev, max_length, alphabet_pos.size())
@@ -164,13 +156,16 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     chunk_test = utils.construct_tensor_onehot(chunk_sentences_id_test, max_length, alphabet_chunk.size())
     word_train = np.concatenate((word_train, pos_train), axis=2)
     word_train = np.concatenate((word_train, chunk_train), axis=2)
-    if lifelong: word_train = np.concatenate((word_train, prev_words_feature_train), axis=2)
+    if lifelong:
+        word_train = np.concatenate((word_train, prev_words_feature_train), axis=2)
     word_dev = np.concatenate((word_dev, pos_dev), axis=2)
     word_dev = np.concatenate((word_dev, chunk_dev), axis=2)
-    if lifelong: word_dev = np.concatenate((word_dev, prev_words_feature_dev), axis=2)
+    if lifelong:
+        word_dev = np.concatenate((word_dev, prev_words_feature_dev), axis=2)
     word_test = np.concatenate((word_test, pos_test), axis=2)
     word_test = np.concatenate((word_test, chunk_test), axis=2)
-    if lifelong: word_test = np.concatenate((word_test, prev_words_feature_test), axis=2)
+    if lifelong:
+        word_test = np.concatenate((word_test, prev_words_feature_test), axis=2)
     alphabet_char = LabelEncoder('char')
     alphabet_char.get_index(word_end)
     index_sentences_train, max_char_length_train = utils.get_character_indexes(word_sentences_train, alphabet_char)

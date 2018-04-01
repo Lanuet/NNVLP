@@ -204,7 +204,7 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
     Y = np.empty([len(word_sentences), max_length], dtype=np.int32)
     mask = np.zeros([len(word_sentences), max_length], dtype=theano.config.floatX)
     lifelong = prev_words_avg is not None
-    if lifelong: prev_words_feature = np.zeros([len(word_sentences), max_length, prev_words_avg.shape[0]], dtype=theano.config.floatX)
+    prev_words_feature = np.zeros([len(word_sentences), max_length, prev_words_avg.shape[0]], dtype=theano.config.floatX) if lifelong else None
     for i in range(len(word_sentences)):
         words = word_sentences[i]
         label_ids = label_index_sentences[i]
@@ -230,10 +230,7 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
         Y[i, length:] = Y[i, length - 1]
         # Make the mask for this sample 1 within the range of length
         mask[i, :length] = 1
-    if lifelong:
-        return X, Y, mask, prev_words_feature
-    else:
-        return X, Y, mask
+    return X, Y, mask, prev_words_feature
 
 def construct_tensor_prev_words_avg(path, unknown_embedd, embedd_words, embedd_vectors):
     with open(path, "r", encoding="utf8") as f:
