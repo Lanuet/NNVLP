@@ -22,10 +22,10 @@ def word_previous_entity(path):
     return words
 
 def main():
-    words = word_previous_entity("data/ner/ner_train.muc")
+    words = word_previous_entity("data/ner/-Doi_song_train.muc")
     for tag in words:
         with open("data/ner/prev_%s.txt" % tag, "w", encoding="utf8") as f:
-            f.write("\n".join(words[tag]))
+            f.write("\n".join(set(words[tag])))
 
 
 if __name__ == "__main__":
