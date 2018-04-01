@@ -3,7 +3,7 @@
 #BSUB -J ner
 #BSUB -n 36
 #BSUB -R "span[ptile=4]"
-#BSUB -q gpu
+#BSUB -q normal
 #BSUB -e %J.err
 #BSUB -o %J.out
 
