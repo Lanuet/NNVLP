@@ -1,21 +1,24 @@
 import utils2 as utils
 
+UNIQUE_PREV_WORDS = True
 
-def save_prev_words(prev_words):
-    prev_words = {k: list(v) for k, v in prev_words.items()}
-    utils.json_dump("data/ner/prev_words.json", prev_words)
+
+def unique_prev_words(prev_words):
+    return {k: list(set(v)) for k, v in prev_words.items()}
 
 
 # lấy các từ đứng trước các entity
 def word_previous_entity(path):
     print(path)
     sentences = utils.parse(utils.read(path), ["\n\n", "\n", "\t"])
-    output = {k: set() for k in ["ORG", "LOC", "PER", "MIC"]}
+    output = {k: [] for k in ["ORG", "LOC", "PER", "MIC"]}
     for s in sentences:
         for w, prev_w in zip(s[1:], s[:-1]):
             if w[-2] != "O" and prev_w[-2] == 'O' and prev_w[0] not in utils.punctuations:
                 tag = w[-2].split("-")[-1]
-                output[tag].add(prev_w[0])
+                output[tag].append(prev_w[0])
+    if UNIQUE_PREV_WORDS:
+        output = unique_prev_words(output)
     return output
 
 
@@ -40,13 +43,14 @@ def update(prev_words, labeled_words, min_count=0):
         for word, count in words_count.items():
             if count > min_count:
                 prev_words[tag].append(word)
-    prev_words = {k: list(set(v)) for k, v in prev_words.items()}
+    if UNIQUE_PREV_WORDS:
+        prev_words = unique_prev_words(prev_words)
     return prev_words
 
 
 def main():
     words = word_previous_entity("data/ner/-Doi_song_train.muc")
-    save_prev_words(words)
+    utils.json_dump("data/ner/prev_words.json", words)
 
 
 if __name__ == "__main__":
