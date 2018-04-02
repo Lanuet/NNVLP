@@ -7,6 +7,10 @@ def unique_prev_words(prev_words):
     return {k: list(set(v)) for k, v in prev_words.items()}
 
 
+def prev_words_count(prev_words):
+    return {k: len(v) for k, v in prev_words.items()}
+
+
 # lấy các từ đứng trước các entity
 def word_previous_entity(path):
     print(path)
@@ -22,23 +26,28 @@ def word_previous_entity(path):
     return output
 
 
-def update(prev_words, labeled_words, min_count=0):
+def update(prev_words, sentences, min_count=0):
     """
 
     :param prev_words: prev_words.json hiện tại
-    :param labeled_words: [(word1, ner_tag1), (word2, ner_tag2), ...]
+    :param sentences:   [
+                            [(w1, t1), (w2, t2), ...],   # sentence 1
+                            ,...
+                        ]
     :param min_count:
     :return: prev_words mới
     """
     counters = {}
-    for word, tag, prev_word, prev_tag in zip(labeled_words[1:], labeled_words[:-1]):
-        if tag != 'O' and prev_tag != 'O' and prev_word not in utils.punctuations:
-            _tag = tag.split("-")[-1]
-            if _tag not in counters:
-                counters[_tag] = {}
-            if prev_word not in counters[_tag]:
-                counters[_tag][prev_word] = 0
-            counters[_tag][prev_word] += 1
+    prev_words = {k: v[:] for k, v in prev_words.items()}  # copy
+    for sen in sentences:
+        for (word, tag), (prev_word, prev_tag) in zip(sen[1:], sen[:-1]):
+            if tag != 'O' and prev_tag != 'O' and prev_word not in utils.punctuations:
+                _tag = tag.split("-")[-1]
+                if _tag not in counters:
+                    counters[_tag] = {}
+                if prev_word not in counters[_tag]:
+                    counters[_tag][prev_word] = 0
+                counters[_tag][prev_word] += 1
     for tag, words_count in counters.items():
         for word, count in words_count.items():
             if count > min_count:
@@ -50,8 +59,19 @@ def update(prev_words, labeled_words, min_count=0):
 
 def main():
     words = word_previous_entity("data/ner/-Doi_song_train.muc")
+    print(prev_words_count(words))
     utils.json_dump("data/ner/prev_words.json", words)
+
+
+def main2():
+    prev_words = utils.json_load("data/ner/prev_words.json")
+    test_data = utils.parse(utils.read("data/ner/Doi_song_test.muc"), ["\n\n", "\n", "\t"])
+    test_data = [[(w[0], w[-2]) for w in s] for s in test_data]
+    new_prev_words = update(prev_words, test_data)
+    print("old: " + str(prev_words_count(prev_words)))
+    print("new: " + str(prev_words_count(new_prev_words)))
 
 
 if __name__ == "__main__":
     main()
+    # main2()
