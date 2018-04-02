@@ -2,6 +2,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 from labelencoder import LabelEncoder
+from utils2 import *
 
 MAX_CHAR_LENGTH = 45
 word_end = "##WE##"
@@ -232,9 +233,8 @@ def construct_tensor_word(word_sentences, label_index_sentences, unknown_embedd,
         mask[i, :length] = 1
     return X, Y, mask, prev_words_feature
 
-def construct_tensor_prev_words_avg(path, unknown_embedd, embedd_words, embedd_vectors):
-    with open(path, "r", encoding="utf8") as f:
-        words = f.read().strip().split("\n")
+
+def construct_tensor_prev_words_avg(words, unknown_embedd, embedd_words, embedd_vectors):
     words_embeded = []
     for word in words:
         try:

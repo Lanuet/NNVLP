@@ -1,4 +1,3 @@
-import glob
 import theano
 import network
 import utils
@@ -130,11 +129,9 @@ def create_data_2_train(train_path, dev_path, test_path, char_embedd_dim):
     label_sentences_id_test = utils.map_string_2_id_close(label_sentences_test, alphabet_label)
 
     if lifelong:
-        files = glob.glob("data/ner/prev_*.txt")
-        prev_words_avg = np.empty([len(files), embedd_dim], dtype=theano.config.floatX)
-        for i, f in enumerate(files):
-            prev_words = utils.construct_tensor_prev_words_avg(f, unknown_embedd, embedding_words, embedding_vectors)
-            prev_words_avg[i, :] = prev_words
+        prev_words = utils.json_load("data/ner/prev_words.json")
+        prev_words_avg = [utils.construct_tensor_prev_words_avg(words, unknown_embedd, embedding_words, embedding_vectors) for words in prev_words.values()]
+        prev_words_avg = np.array(prev_words_avg, dtype=theano.config.floatX)
     else:
         prev_words_avg = None
 
