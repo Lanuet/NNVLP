@@ -19,7 +19,7 @@ def write(path, string):
 
 def read(path):
     with open(path, "r", encoding="utf8") as f:
-        return f.read().strip()
+        return f.read()
 
 
 def json_dump(path, data):
