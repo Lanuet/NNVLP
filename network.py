@@ -151,7 +151,7 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
     eval_fn = theano.function([input_var, target_var, mask_var, char_input_var],
                               [loss_eval, corr_eval, num_tokens, prediction_eval])
     num_batches = num_data / batch_size
-    num_epochs = 100
+    num_epochs = 20
     best_loss = 1e+12
     best_acc = 0.0
     best_epoch_loss = 0
