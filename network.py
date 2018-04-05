@@ -62,15 +62,13 @@ def build_model(data):
     layer_mask = InputLayer(shape=(None, data.max_sen_len), input_var=mask_var, name='mask')
 
     # create word input layer
-    word_input_var = T.itensor3(name='word_inputs')
-    layer_word_input = InputLayer(shape=(None, data.max_sen_len, 1), input_var=word_input_var, name='word_input')
-    layer_word_input = reshape(layer_word_input, (-1, [2]))
+    word_input_var = T.imatrix(name='word_inputs')
+    layer_word_input = InputLayer(shape=(None, data.max_sen_len), input_var=word_input_var, name='word_input')
     layer_word_embedding = StaticEmbeddingLayer(layer_word_input, input_size=data.word_embeddings.shape[0], output_size=data.word_embeddings.shape[1], W=data.word_embeddings, name='word_embedding')
 
     # create pos input layer
-    pos_input_var = T.itensor3(name='pos_inputs')
-    layer_pos_input = InputLayer(shape=(None, data.max_sen_len, 1), input_var=pos_input_var, name='pos_input')
-    layer_pos_input = reshape(layer_pos_input, (-1, [2]))
+    pos_input_var = T.imatrix(name='pos_inputs')
+    layer_pos_input = InputLayer(shape=(None, data.max_sen_len), input_var=pos_input_var, name='pos_input')
     layer_pos_embedding = StaticEmbeddingLayer(layer_pos_input, input_size=data.pos_embeddings.shape[0], output_size=data.pos_embeddings.shape[1], W=data.pos_embeddings, name='pos_embedding')
 
     # create char input layer
