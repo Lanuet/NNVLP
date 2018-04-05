@@ -89,16 +89,16 @@ def crf_prediction(energies):
     return prediction
 
 
-def output_predictions(predictions, targets, masks, filename, label_alphabet, is_flattened=True):
-    batch_size, max_length = targets.shape
-    with open(filename, 'a') as file:
-        for i in range(batch_size):
-            for j in range(max_length):
-                if masks[i, j] > 0.:
-                    prediction = predictions[i * max_length + j] + 1 if is_flattened else predictions[i, j] + 1
-                    file.write('_ %s %s\n' % (label_alphabet.get_instance(targets[i, j] + 1),
-                                              label_alphabet.get_instance(prediction)))
-            file.write('\n')
+def iterate_minibatches(data, batch_size=10, shuffle=False):
+    if shuffle:
+        indices = np.arange(data.num_data)
+        np.random.shuffle(indices)
+    for start_idx in range(0, data.num_data, batch_size):
+        if shuffle:
+            excerpt = indices[start_idx:start_idx + batch_size]
+        else:
+            excerpt = slice(start_idx, start_idx + batch_size)
+        yield data.words[excerpt], data.pos[excerpt], data.ner[excerpt], data.mask[excerpt], data.chars[excerpt]
 
 
 def theano_logsumexp(x, axis=None):
@@ -248,16 +248,12 @@ def construct_tensor_onehot(feature_sentences, max_length, dim):
     return X
 
 
-def iterate_minibatches(inputs, targets, masks=None, char_inputs=None, batch_size=10, shuffle=False):
-    assert len(inputs) == len(targets)
-    assert len(inputs) == len(masks)
-    assert len(inputs) == len(char_inputs)
-    if shuffle:
-        indices = np.arange(len(inputs))
-        np.random.shuffle(indices)
-    for start_idx in range(0, len(inputs), batch_size):
-        if shuffle:
-            excerpt = indices[start_idx:start_idx + batch_size]
-        else:
-            excerpt = slice(start_idx, start_idx + batch_size)
-        yield inputs[excerpt], targets[excerpt], masks[excerpt], char_inputs[excerpt]
+def output_predictions(predictions, targets, masks, filename, label_decoder, is_flattened=True):
+    batch_size, max_length = targets.shape
+    with open(filename, 'a') as file:
+        for i in range(batch_size):
+            for j in range(max_length):
+                if masks[i, j] > 0.:
+                    prediction = predictions[i * max_length + j] + 1 if is_flattened else predictions[i, j] + 1
+                    file.write('_ %s %s\n' % (label_decoder[targets[i, j] + 1], label_decoder[prediction]))
+            file.write('\n')

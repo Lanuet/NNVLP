@@ -1,7 +1,7 @@
 import lasagne
 import theano.tensor as T
 import theano
-from lasagne.layers import Gate
+from lasagne.layers import Gate, InputLayer, EmbeddingLayer, DimshuffleLayer, reshape
 import lasagne.nonlinearities as nonlinearities
 import utils
 import time
@@ -11,6 +11,9 @@ import subprocess
 import shlex
 from lasagne import init
 from lasagne.layers import MergeLayer
+from layers import StaticEmbeddingLayer
+import config
+from utils2 import ObjectDict, make_dict
 
 
 class CRFLayer(MergeLayer):
@@ -50,32 +53,40 @@ class CRFLayer(MergeLayer):
         return out
 
 
-def build_model(embedd_dim, max_sent_length, max_char_length, char_alphabet_size, char_embedd_dim, num_labels, dropout,
-                num_filters, num_units, grad_clipping, peepholes, char_embedd_table):
+def build_model(data):
     # create target layer
     target_var = T.imatrix(name='targets')
+
     # create mask layer
     mask_var = T.matrix(name='masks', dtype=theano.config.floatX)
-    layer_mask = lasagne.layers.InputLayer(shape=(None, max_sent_length), input_var=mask_var, name='mask')
-    # create word input and char input layers
-    input_var = T.tensor3(name='inputs', dtype=theano.config.floatX)
-    char_input_var = T.itensor3(name='char-inputs')
-    layer_embedding = lasagne.layers.InputLayer(shape=(None, max_sent_length, embedd_dim), input_var=input_var,
-                                                name='input')
-    layer_char_input = lasagne.layers.InputLayer(shape=(None, max_sent_length, max_char_length),
-                                                 input_var=char_input_var, name='char-input')
-    layer_char_input = lasagne.layers.reshape(layer_char_input, (-1, [2]))
-    layer_char_embedding = lasagne.layers.EmbeddingLayer(layer_char_input, input_size=char_alphabet_size,
-                                                         output_size=char_embedd_dim, name='char_embedding',
-                                                         W=char_embedd_table)
-    layer_char_input = lasagne.layers.DimshuffleLayer(layer_char_embedding, pattern=(0, 2, 1))
+    layer_mask = InputLayer(shape=(None, data.max_sen_len), input_var=mask_var, name='mask')
+
+    # create word input layer
+    word_input_var = T.itensor3(name='word_inputs')
+    layer_word_input = InputLayer(shape=(None, data.max_sen_len, 1), input_var=word_input_var, name='word_input')
+    layer_word_input = reshape(layer_word_input, (-1, [2]))
+    layer_word_embedding = StaticEmbeddingLayer(layer_word_input, input_size=data.word_embeddings.shape[0], output_size=data.word_embeddings.shape[1], W=data.word_embeddings, name='word_embedding')
+
+    # create pos input layer
+    pos_input_var = T.itensor3(name='pos_inputs')
+    layer_pos_input = InputLayer(shape=(None, data.max_sen_len, 1), input_var=pos_input_var, name='pos_input')
+    layer_pos_input = reshape(layer_pos_input, (-1, [2]))
+    layer_pos_embedding = StaticEmbeddingLayer(layer_pos_input, input_size=data.pos_embeddings.shape[0], output_size=data.pos_embeddings.shape[1], W=data.pos_embeddings, name='pos_embedding')
+
+    # create char input layer
+    char_input_var = T.itensor3(name='char_inputs')
+    layer_char_input = InputLayer(shape=(None, data.max_sen_len, data.max_word_len), input_var=char_input_var, name='char_input')
+    layer_char_input = reshape(layer_char_input, (-1, [2]))
+    layer_char_embedding = EmbeddingLayer(layer_char_input, input_size=data.char_embeddings.shape[0], output_size=data.char_embeddings.shape[1], name='char_embedding', W=data.char_embeddings)
+    layer_char_input = DimshuffleLayer(layer_char_embedding, pattern=(0, 2, 1))
+
     # create window size
     conv_window = 3
-    _, sent_length, _ = layer_embedding.output_shape
-    if dropout:
+    _, sent_length, _ = layer_word_embedding.output_shape
+    if config.dropout:
         layer_char_input = lasagne.layers.DropoutLayer(layer_char_input, p=0.5)
     # construct convolution layer
-    cnn_layer = lasagne.layers.Conv1DLayer(layer_char_input, num_filters=num_filters,
+    cnn_layer = lasagne.layers.Conv1DLayer(layer_char_input, num_filters=config.num_filters,
                                            filter_size=conv_window, pad='full',
                                            nonlinearity=lasagne.nonlinearities.tanh, name='cnn')
     # infer the pool size for pooling (pool size should go through all time step of cnn)
@@ -86,9 +97,9 @@ def build_model(embedd_dim, max_sent_length, max_char_length, char_alphabet_size
     # num_filters]
     output_cnn_layer = lasagne.layers.reshape(pool_layer, (-1, sent_length, [1]))
     # finally, concatenate the two incoming layers together.
-    incoming = lasagne.layers.concat([output_cnn_layer, layer_embedding], axis=2)
+    incoming = lasagne.layers.concat([output_cnn_layer, layer_word_embedding, layer_pos_embedding], axis=2)
     # create bi-lstm
-    if dropout:
+    if config.dropout:
         incoming = lasagne.layers.DropoutLayer(incoming, p=0.5)
     ingate_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
                           W_cell=lasagne.init.Uniform(range=0.1))
@@ -100,9 +111,9 @@ def build_model(embedd_dim, max_sent_length, max_char_length, char_alphabet_size
     # now use tanh for nonlinear function of cell, need to try pure linear cell
     cell_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(), W_cell=None,
                         nonlinearity=nonlinearities.tanh)
-    lstm_forward = lasagne.layers.LSTMLayer(incoming, num_units, mask_input=layer_mask,
-                                            grad_clipping=grad_clipping, nonlinearity=nonlinearities.tanh,
-                                            peepholes=peepholes, ingate=ingate_forward, outgate=outgate_forward,
+    lstm_forward = lasagne.layers.LSTMLayer(incoming, config.num_units, mask_input=layer_mask,
+                                            grad_clipping=config.grad_clipping, nonlinearity=nonlinearities.tanh,
+                                            peepholes=config.peepholes, ingate=ingate_forward, outgate=outgate_forward,
                                             forgetgate=forgetgate_forward, cell=cell_forward, name='forward')
     ingate_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
                            W_cell=lasagne.init.Uniform(range=0.1))
@@ -114,44 +125,43 @@ def build_model(embedd_dim, max_sent_length, max_char_length, char_alphabet_size
     # now use tanh for nonlinear function of cell, need to try pure linear cell
     cell_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(), W_cell=None,
                          nonlinearity=nonlinearities.tanh)
-    lstm_backward = lasagne.layers.LSTMLayer(incoming, num_units, mask_input=layer_mask,
-                                             grad_clipping=grad_clipping, nonlinearity=nonlinearities.tanh,
-                                             peepholes=peepholes, backwards=True, ingate=ingate_backward,
+    lstm_backward = lasagne.layers.LSTMLayer(incoming, config.num_units, mask_input=layer_mask,
+                                             grad_clipping=config.grad_clipping, nonlinearity=nonlinearities.tanh,
+                                             peepholes=config.peepholes, backwards=True, ingate=ingate_backward,
                                              outgate=outgate_backward, forgetgate=forgetgate_backward,
                                              cell=cell_backward, name='backward')
     # concatenate the outputs of forward and backward RNNs to combine them.
     concat = lasagne.layers.concat([lstm_forward, lstm_backward], axis=2, name="bi-lstm")
     # dropout for output
-    if dropout:
+    if config.dropout:
         concat = lasagne.layers.DropoutLayer(concat, p=0.5)
     # the shape of Bi-LSTM output (concat) is (batch_size, input_length, 2 * num_hidden_units)
-    model = CRFLayer(concat, num_labels, mask_input=layer_mask)
+    model = CRFLayer(concat, data.num_labels, mask_input=layer_mask)
     energies = lasagne.layers.get_output(model, deterministic=True)
     prediction = utils.crf_prediction(energies)
-    prediction_fn = theano.function([input_var, mask_var, char_input_var], [prediction])
-    return model, input_var, target_var, mask_var, char_input_var, prediction_fn
+    prediction_fn = theano.function([word_input_var, pos_input_var, mask_var, char_input_var], [prediction])
+
+    vars = ObjectDict(make_dict(word_input_var, pos_input_var, target_var, mask_var, char_input_var))
+    return model, vars, prediction_fn
 
 
-def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_train, Y_train, mask_train, C_train, X_dev,
-                Y_dev, mask_dev, C_dev, X_test, Y_test, mask_test, C_test, input_var, target_var, mask_var,
-                char_input_var, model, model_name, label_alphabet, output_dir):
-    num_tokens = mask_var.sum(dtype=theano.config.floatX)
+def train_model(data_train, data_dev, data_test, model, model_name, vars, label_decoder, output_dir):
+    num_tokens = vars.mask_var.sum(dtype=theano.config.floatX)
     energies_train = lasagne.layers.get_output(model)
     energies_eval = lasagne.layers.get_output(model, deterministic=True)
-    loss_train = utils.crf_loss(energies_train, target_var, mask_var).mean()
-    loss_eval = utils.crf_loss(energies_eval, target_var, mask_var).mean()
-    _, corr_train = utils.crf_accuracy(energies_train, target_var)
-    corr_train = (corr_train * mask_var).sum(dtype=theano.config.floatX)
-    prediction_eval, corr_eval = utils.crf_accuracy(energies_eval, target_var)
-    corr_eval = (corr_eval * mask_var).sum(dtype=theano.config.floatX)
+    loss_train = utils.crf_loss(energies_train, vars.target_var, vars.mask_var).mean()
+    loss_eval = utils.crf_loss(energies_eval, vars.target_var, vars.mask_var).mean()
+    _, corr_train = utils.crf_accuracy(energies_train, vars.target_var)
+    corr_train = (corr_train * vars.mask_var).sum(dtype=theano.config.floatX)
+    prediction_eval, corr_eval = utils.crf_accuracy(energies_eval, vars.target_var)
+    corr_eval = (corr_eval * vars.mask_var).sum(dtype=theano.config.floatX)
     params = lasagne.layers.get_all_params(model, trainable=True)
-    updates = lasagne.updates.momentum(loss_train, params=params, learning_rate=learning_rate, momentum=0.9)
-    train_fn = theano.function([input_var, target_var, mask_var, char_input_var],
+    updates = lasagne.updates.momentum(loss_train, params=params, learning_rate=config.learning_rate, momentum=0.9)
+    train_fn = theano.function([vars.word_input_var, vars.pos_input_var, vars.target_var, vars.mask_var, vars.char_input_var],
                                [loss_train, corr_train, num_tokens], updates=updates)
-    eval_fn = theano.function([input_var, target_var, mask_var, char_input_var],
+    eval_fn = theano.function([vars.word_input_var, vars.pos_input_var, vars.target_var, vars.mask_var, vars.char_input_var],
                               [loss_eval, corr_eval, num_tokens, prediction_eval])
-    num_batches = num_data / batch_size
-    num_epochs = 20
+    num_batches = data_train.num_data / config.batch_size
     best_loss = 1e+12
     best_acc = 0.0
     best_epoch_loss = 0
@@ -161,9 +171,9 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
     best_acc_test_err = 0.
     best_acc_test_corr = 0.
     stop_count = 0
-    lr = learning_rate
-    for epoch in range(1, num_epochs + 1):
-        print('Epoch %d (learning rate=%.4f, decay rate=%.4f): ' % (epoch, lr, decay_rate))
+    lr = config.learning_rate
+    for epoch in range(1, config.num_epochs + 1):
+        print('Epoch %d (learning rate=%.4f, decay rate=%.4f): ' % (epoch, lr, config.decay_rate))
         train_err = 0.0
         train_corr = 0.0
         train_total = 0
@@ -171,42 +181,40 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
         start_time = time.time()
         num_back = 0
         train_batches = 0
-        for batch in utils.iterate_minibatches(X_train, Y_train, masks=mask_train, char_inputs=C_train,
-                                               batch_size=batch_size, shuffle=True):
-            inputs, targets, masks, char_inputs = batch
-            err, corr, num = train_fn(inputs, targets, masks, char_inputs)
-            train_err += err * inputs.shape[0]
+        for batch in utils.iterate_minibatches(data_train, batch_size=config.batch_size, shuffle=True):
+            word_inputs, pos_inputs, targets, masks, char_inputs = batch
+            err, corr, num = train_fn(word_inputs, pos_inputs, targets, masks, char_inputs)
+            train_err += err * word_inputs.shape[0]
             train_corr += corr
             train_total += num
-            train_inst += inputs.shape[0]
+            train_inst += word_inputs.shape[0]
             train_batches += 1
             time_ave = (time.time() - start_time) / train_batches
             time_left = (num_batches - train_batches) * time_ave
             sys.stdout.write("\b" * num_back)
             log_info = 'train: %d/%d loss: %.4f, acc: %.2f%%, time left (estimated): %.2fs' % (
-                min(train_batches * batch_size, num_data), num_data,
+                min(train_batches * config.batch_size, data_train.num_data), data_train.num_data,
                 train_err / train_inst, train_corr * 100 / train_total, time_left)
             sys.stdout.write(log_info)
             num_back = len(log_info)
         # update training log after each epoch
-        assert train_inst == num_data
+        assert train_inst == data_train.num_data
         sys.stdout.write("\b" * num_back)
-        print('train: %d/%d loss: %.4f, acc: %.2f%%, time: %.2fs' % (min(train_batches * batch_size, num_data), num_data, train_err / num_data, train_corr * 100 / train_total, time.time() - start_time))
+        print('train: %d/%d loss: %.4f, acc: %.2f%%, time: %.2fs' % (min(train_batches * data_train.batch_size, data_train.num_data), data_train.num_data, train_err / data_train.num_data, train_corr * 100 / train_total, time.time() - start_time))
         # evaluate performance on dev data
         dev_err = 0.0
         dev_corr = 0.0
         dev_total = 0
         dev_inst = 0
-        for batch in utils.iterate_minibatches(X_dev, Y_dev, masks=mask_dev, char_inputs=C_dev,
-                                               batch_size=batch_size):
-            inputs, targets, masks, char_inputs = batch
-            err, corr, num, predictions = eval_fn(inputs, targets, masks, char_inputs)
-            dev_err += err * inputs.shape[0]
+        for batch in utils.iterate_minibatches(data_dev, batch_size=config.batch_size):
+            word_inputs, pos_inputs, targets, masks, char_inputs = batch
+            err, corr, num, predictions = eval_fn(word_inputs, pos_inputs, targets, masks, char_inputs)
+            dev_err += err * word_inputs.shape[0]
             dev_corr += corr
             dev_total += num
-            dev_inst += inputs.shape[0]
-            utils.output_predictions(predictions, targets, masks, output_dir + '/dev%d' % epoch, label_alphabet,
-                                     is_flattened=False)
+            dev_inst += word_inputs.shape[0]
+            utils.output_predictions(predictions, targets, masks, output_dir + '/dev%d' % epoch, label_decoder, is_flattened=False)
+
         print('dev loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (dev_err / dev_inst, dev_corr, dev_total, dev_corr * 100 / dev_total))
         if model_name != 'pos':
             input = open(output_dir + '/dev%d' % epoch)
@@ -231,16 +239,15 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
             test_corr = 0.0
             test_total = 0
             test_inst = 0
-            for batch in utils.iterate_minibatches(X_test, Y_test, masks=mask_test, char_inputs=C_test,
-                                                   batch_size=batch_size):
-                inputs, targets, masks, char_inputs = batch
-                err, corr, num, predictions = eval_fn(inputs, targets, masks, char_inputs)
-                test_err += err * inputs.shape[0]
+            for batch in utils.iterate_minibatches(data_test, batch_size=config.batch_size):
+                word_inputs, pos_inputs, targets, masks, char_inputs = batch
+                err, corr, num, predictions = eval_fn(word_inputs, pos_inputs, targets, masks, char_inputs)
+                test_err += err * word_inputs.shape[0]
                 test_corr += corr
                 test_total += num
-                test_inst += inputs.shape[0]
-                utils.output_predictions(predictions, targets, masks, output_dir + '/test%d' % epoch, label_alphabet,
-                                         is_flattened=False)
+                test_inst += word_inputs.shape[0]
+                utils.output_predictions(predictions, targets, masks, output_dir + '/test%d' % epoch, label_decoder, is_flattened=False)
+
             np.savez('pre-trained-model/' + model_name + '/weights', *lasagne.layers.get_all_param_values(model))
             print('test loss: %.4f, corr: %d, total: %d, acc: %.2f%%' % (test_err / test_inst, test_corr, test_total, test_corr * 100 / test_total))
             if model_name != 'pos':
@@ -254,12 +261,12 @@ def train_model(num_data, batch_size, learning_rate, patience, decay_rate, X_tra
                 best_acc_test_err = test_err
                 best_acc_test_corr = test_corr
         # stop if dev acc decrease patience time straightly.
-        if stop_count == patience:
+        if stop_count == config.patience:
             break
         # re-compile a function with new learning rate for training
-        lr = learning_rate / (1.0 + epoch * decay_rate)
+        lr = config.learning_rate / (1.0 + epoch * config.decay_rate)
         lasagne.updates.momentum(loss_train, params=params, learning_rate=lr, momentum=0.9)
-        train_fn = theano.function([input_var, target_var, mask_var, char_input_var],
+        train_fn = theano.function([vars.word_input_var, vars.pos_input_var, vars.target_var, vars.mask_var, vars.char_input_var],
                                    [loss_train, corr_train, num_tokens],
                                    updates=updates)
     # print(best performance on test data.)
