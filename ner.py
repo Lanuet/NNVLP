@@ -232,8 +232,7 @@ def set_weights(filename, model):
 
 
 if __name__ == '__main__':
-    if not os.path.exists("output/ner"):
-        os.makedirs("output/ner")
+    os.makedirs("output/ner", exist_ok=True)
 
     start_time = datetime.now()
     print('Loading data...')
