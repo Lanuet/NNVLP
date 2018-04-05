@@ -107,7 +107,6 @@ venv.bak/
 
 .DS_Store
 .idea/*
-embedding/*
 output/*
 cookie.txt
 tmp
