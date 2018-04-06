@@ -144,22 +144,37 @@ def build_model(data):
 
 
 def train_model(data_train, data_dev, data_test, model, model_name, vars, label_decoder, output_dir):
+    print(1)
     num_tokens = vars.mask_var.sum(dtype=theano.config.floatX)
+    print(2)
     energies_train = lasagne.layers.get_output(model)
+    print(3)
     energies_eval = lasagne.layers.get_output(model, deterministic=True)
+    print(4)
     loss_train = utils.crf_loss(energies_train, vars.target_var, vars.mask_var).mean()
+    print(5)
     loss_eval = utils.crf_loss(energies_eval, vars.target_var, vars.mask_var).mean()
+    print(6)
     _, corr_train = utils.crf_accuracy(energies_train, vars.target_var)
+    print(7)
     corr_train = (corr_train * vars.mask_var).sum(dtype=theano.config.floatX)
+    print(8)
     prediction_eval, corr_eval = utils.crf_accuracy(energies_eval, vars.target_var)
+    print(9)
     corr_eval = (corr_eval * vars.mask_var).sum(dtype=theano.config.floatX)
+    print(10)
     params = lasagne.layers.get_all_params(model, trainable=True)
+    print(11)
     updates = lasagne.updates.momentum(loss_train, params=params, learning_rate=config.learning_rate, momentum=0.9)
+    print(12)
     train_fn = theano.function([vars.word_input_var, vars.pos_input_var, vars.target_var, vars.mask_var, vars.char_input_var],
                                [loss_train, corr_train, num_tokens], updates=updates)
+    print(13)
     eval_fn = theano.function([vars.word_input_var, vars.pos_input_var, vars.target_var, vars.mask_var, vars.char_input_var],
                               [loss_eval, corr_eval, num_tokens, prediction_eval])
+    print(14)
     num_batches = data_train.num_data / config.batch_size
+    print(15)
     best_loss = 1e+12
     best_acc = 0.0
     best_epoch_loss = 0
@@ -180,8 +195,10 @@ def train_model(data_train, data_dev, data_test, model, model_name, vars, label_
         num_back = 0
         train_batches = 0
         for batch in utils.iterate_minibatches(data_train, batch_size=config.batch_size, shuffle=True):
+            print("training batch")
             word_inputs, pos_inputs, targets, masks, char_inputs = batch
             err, corr, num = train_fn(word_inputs, pos_inputs, targets, masks, char_inputs)
+            print("training batch done")
             train_err += err * word_inputs.shape[0]
             train_corr += corr
             train_total += num
