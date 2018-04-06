@@ -1,8 +1,12 @@
 import lasagne
 import theano.tensor as T
 import theano
-from lasagne.layers import Gate, InputLayer, EmbeddingLayer, DimshuffleLayer, reshape
+from keras.layers import Embedding, TimeDistributed, Conv1D, GlobalMaxPooling1D, GlobalMaxPool1D, Merge, Dropout, \
+    Bidirectional, LSTM, Dense
+from keras import Sequential
 import lasagne.nonlinearities as nonlinearities
+from keras.optimizers import SGD
+
 import utils
 import time
 import sys
@@ -11,8 +15,8 @@ import subprocess
 import shlex
 from lasagne import init
 from lasagne.layers import MergeLayer
-from layers import StaticEmbeddingLayer
 import config
+from layers import ChainCRF
 from utils2 import ObjectDict, make_dict
 
 
@@ -54,93 +58,41 @@ class CRFLayer(MergeLayer):
 
 
 def build_model(data):
-    # create target layer
-    target_var = T.imatrix(name='targets')
+    tokens = Sequential()
+    tokens.add(Embedding(input_dim=data.word_embeddings.shape[0], output_dim=data.word_embeddings.shape[1], weights=[data.word_embeddings], trainable=False,name='token_emd'))
 
-    # create mask layer
-    mask_var = T.matrix(name='masks', dtype=theano.config.floatX)
-    layer_mask = InputLayer(shape=(None, data.max_sen_len), input_var=mask_var, name='mask')
+    pos = Sequential()
+    pos.add(Embedding(input_dim=data.pos_embeddings.shape[0], output_dim=data.pos_embeddings.shape[1], weights=[data.pos_embeddings], trainable=False, name='pos_emd'))
 
-    # create word input layer
-    word_input_var = T.imatrix(name='word_inputs')
-    layer_word_input = InputLayer(shape=(None, data.max_sen_len), input_var=word_input_var, name='word_input')
-    layer_word_embedding = StaticEmbeddingLayer(layer_word_input, input_size=data.word_embeddings.shape[0], output_size=data.word_embeddings.shape[1], W=data.word_embeddings, name='word_embedding')
+    mergeLayers = [tokens, pos]
 
-    # create pos input layer
-    pos_input_var = T.imatrix(name='pos_inputs')
-    layer_pos_input = InputLayer(shape=(None, data.max_sen_len), input_var=pos_input_var, name='pos_input')
-    layer_pos_embedding = StaticEmbeddingLayer(layer_pos_input, input_size=data.pos_embeddings.shape[0], output_size=data.pos_embeddings.shape[1], W=data.pos_embeddings, name='pos_embedding')
+    # :: Character Embeddings ::
+    chars = Sequential()
+    chars.add(TimeDistributed(Embedding(input_dim=data.char_embeddings.shape[0], output_dim=data.char_embeddings.shape[1], weights=[data.char_embeddings], trainable=True, mask_zero=True), input_shape=(None, data.max_word_len), name='char_emd'))
+    chars.add(TimeDistributed(Conv1D(config.num_filters, config.conv_window, border_mode='same'), name="char_cnn"))
+    chars.add(TimeDistributed(GlobalMaxPool1D(), name="char_pooling"))
 
-    # create char input layer
-    char_input_var = T.itensor3(name='char_inputs')
-    layer_char_input = InputLayer(shape=(None, data.max_sen_len, data.max_word_len), input_var=char_input_var, name='char_input')
-    layer_char_input = reshape(layer_char_input, (-1, [2]))
-    layer_char_embedding = EmbeddingLayer(layer_char_input, input_size=data.char_embeddings.shape[0], output_size=data.char_embeddings.shape[1], name='char_embedding', W=data.char_embeddings)
-    layer_char_input = DimshuffleLayer(layer_char_embedding, pattern=(0, 2, 1))
+    mergeLayers.append(chars)
 
-    # create window size
-    conv_window = 3
-    _, sent_length, _ = layer_word_embedding.output_shape
-    if config.dropout:
-        layer_char_input = lasagne.layers.DropoutLayer(layer_char_input, p=0.5)
-    # construct convolution layer
-    cnn_layer = lasagne.layers.Conv1DLayer(layer_char_input, num_filters=config.num_filters,
-                                           filter_size=conv_window, pad='full',
-                                           nonlinearity=lasagne.nonlinearities.tanh, name='cnn')
-    # infer the pool size for pooling (pool size should go through all time step of cnn)
-    _, _, pool_size = cnn_layer.output_shape
-    # construct max pool layer
-    pool_layer = lasagne.layers.MaxPool1DLayer(cnn_layer, pool_size=pool_size)
-    # reshape the layer to match lstm incoming layer [batch * sent_length, num_filters, 1] --> [batch, sent_length,
-    # num_filters]
-    output_cnn_layer = lasagne.layers.reshape(pool_layer, (-1, sent_length, [1]))
-    # finally, concatenate the two incoming layers together.
-    incoming = lasagne.layers.concat([output_cnn_layer, layer_word_embedding, layer_pos_embedding], axis=2)
-    # create bi-lstm
-    if config.dropout:
-        incoming = lasagne.layers.DropoutLayer(incoming, p=0.5)
-    ingate_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                          W_cell=lasagne.init.Uniform(range=0.1))
-    outgate_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                           W_cell=lasagne.init.Uniform(range=0.1))
-    # according to Jozefowicz et al.(2015), init bias of forget gate to 1.
-    forgetgate_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                              W_cell=lasagne.init.Uniform(range=0.1), b=lasagne.init.Constant(1.))
-    # now use tanh for nonlinear function of cell, need to try pure linear cell
-    cell_forward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(), W_cell=None,
-                        nonlinearity=nonlinearities.tanh)
-    lstm_forward = lasagne.layers.LSTMLayer(incoming, config.num_units, mask_input=layer_mask,
-                                            grad_clipping=config.grad_clipping, nonlinearity=nonlinearities.tanh,
-                                            peepholes=config.peepholes, ingate=ingate_forward, outgate=outgate_forward,
-                                            forgetgate=forgetgate_forward, cell=cell_forward, name='forward')
-    ingate_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                           W_cell=lasagne.init.Uniform(range=0.1))
-    outgate_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                            W_cell=lasagne.init.Uniform(range=0.1))
-    # according to Jozefowicz et al.(2015), init bias of forget gate to 1.
-    forgetgate_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(),
-                               W_cell=lasagne.init.Uniform(range=0.1), b=lasagne.init.Constant(1.))
-    # now use tanh for nonlinear function of cell, need to try pure linear cell
-    cell_backward = Gate(W_in=lasagne.init.GlorotUniform(), W_hid=lasagne.init.GlorotUniform(), W_cell=None,
-                         nonlinearity=nonlinearities.tanh)
-    lstm_backward = lasagne.layers.LSTMLayer(incoming, config.num_units, mask_input=layer_mask,
-                                             grad_clipping=config.grad_clipping, nonlinearity=nonlinearities.tanh,
-                                             peepholes=config.peepholes, backwards=True, ingate=ingate_backward,
-                                             outgate=outgate_backward, forgetgate=forgetgate_backward,
-                                             cell=cell_backward, name='backward')
-    # concatenate the outputs of forward and backward RNNs to combine them.
-    concat = lasagne.layers.concat([lstm_forward, lstm_backward], axis=2, name="bi-lstm")
-    # dropout for output
-    if config.dropout:
-        concat = lasagne.layers.DropoutLayer(concat, p=0.5)
-    # the shape of Bi-LSTM output (concat) is (batch_size, input_length, 2 * num_hidden_units)
-    model = CRFLayer(concat, data.num_labels, mask_input=layer_mask)
-    energies = lasagne.layers.get_output(model, deterministic=True)
-    prediction = utils.crf_prediction(energies)
-    prediction_fn = theano.function([word_input_var, pos_input_var, mask_var, char_input_var], [prediction])
+    model = Sequential()
+    model.add(Merge(mergeLayers, mode='concat'))
 
-    vars = ObjectDict(make_dict(word_input_var, pos_input_var, target_var, mask_var, char_input_var))
-    return model, vars, prediction_fn
+    # Add LSTMs
+    """ Naive dropout """
+    model.add(Bidirectional(LSTM(config.num_units, return_sequences=True), name="LSTM"))
+
+    if config.dropout > 0.0:
+        model.add(TimeDistributed(Dropout(config.dropout), name="dropout"))
+
+    # Softmax Decoder
+    model.add(TimeDistributed(Dense(data.num_labels, activation=None), name='hidden_layer'))
+    crf = ChainCRF()
+    model.add(crf)
+    lossFct = crf.sparse_loss
+
+    opt = SGD(lr=0.1)
+    model.compile(loss=lossFct, optimizer=opt)
+    return model
 
 
 def train_model(data_train, data_dev, data_test, model, model_name, vars, label_decoder, output_dir):

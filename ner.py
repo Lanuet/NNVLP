@@ -6,6 +6,7 @@ import numpy as np
 import os
 from utils2 import ObjectDict, get_name, reversed_dict
 from glob import glob
+import config
 
 
 def load_data(folder, domain):
@@ -37,7 +38,7 @@ def main():
     del encoder
 
     print('Building model...')
-    ner_model, vars, prediction_fn = network.build_model(data)
+    ner_model = network.build_model(data)
 
     print("Loading test & dev data")
     test_dir = "data/ner/test"
@@ -56,7 +57,7 @@ def main():
         train_data = load_data(train_dir, domain)
 
         print('Training model...')
-        network.train_model(train_data, dev_data, test_data, ner_model, 'ner', vars, label_decoder, 'output/ner')
+        ner_model.fit([train_data.words, train_data.pos, train_data.chars], train_data.ner, batch_size=config.batch_size, epochs=config.num_epochs)
         end_time = datetime.now()
         print("Running time:")
         print(end_time - start_time)
